@@ -29,10 +29,12 @@ export default function Chat() {
   const [showEmoji, setShowEmoji] = useState(false);
   const [showGif, setShowGif] = useState(false);
   const [gifs, setGifs] = useState([]);
+  const [gifQuery, setGifQuery] = useState("");
 
   const usernameRef = useRef(getUsername());
-  const bottomRef = useRef(null);
   const chatBoxRef = useRef(null);
+
+  const PICKER_HEIGHT = showEmoji || showGif ? 300 : 0;
 
   // 🔹 Firestore listener
   useEffect(() => {
@@ -49,16 +51,12 @@ export default function Chat() {
     return () => unsub();
   }, []);
 
-  // 🔹 Force-scroll (mobile safe)
+  // 🔹 Auto-scroll
   useEffect(() => {
     if (!chatBoxRef.current) return;
-    setTimeout(() => {
-      chatBoxRef.current.scrollTop =
-        chatBoxRef.current.scrollHeight;
-    }, 0);
-  }, [messages]);
+    chatBoxRef.current.scrollTop = chatBoxRef.current.scrollHeight;
+  }, [messages, showEmoji, showGif]);
 
-  // 🔹 Send text message
   const sendMessage = async () => {
     if (!text.trim()) return;
 
@@ -73,16 +71,16 @@ export default function Chat() {
     setShowEmoji(false);
   };
 
-  // 🔹 Fetch GIFs
-  const searchGifs = async (q = "funny") => {
+  const searchGifs = async (q) => {
+    if (!q || !q.trim()) return;
+
     const res = await fetch(
-      `https://api.giphy.com/v1/gifs/search?api_key=${import.meta.env.ejfnelwcy3OriOwW6LNSYw7fCi19xvdz}&q=${q}&limit=6`
+      `https://api.giphy.com/v1/gifs/search?api_key=${import.meta.env.VITE_GIPHY_KEY}&q=${encodeURIComponent(q)}`
     );
     const data = await res.json();
-    setGifs(data.data);
+    setGifs(data.data || []);
   };
 
-  // 🔹 Send GIF
   const sendGif = async (url) => {
     await addDoc(collection(db, "messages"), {
       roomId: ROOM_ID,
@@ -119,15 +117,11 @@ export default function Chat() {
         style={{
           flex: 1,
           overflowY: "auto",
-          padding: 12
+          padding: 12,
+          paddingBottom: 80 + PICKER_HEIGHT,
+          transition: "padding-bottom 0.2s ease"
         }}
       >
-        {messages.length === 0 && (
-          <p style={{ color: "#888" }}>
-            No messages yet 👋
-          </p>
-        )}
-
         {messages.map((m, i) => {
           const isMe = m.sender === usernameRef.current;
           return (
@@ -154,104 +148,116 @@ export default function Chat() {
                 )}
 
                 {m.text && <div>{m.text}</div>}
-
                 {m.gifUrl && (
                   <img
                     src={m.gifUrl}
                     alt="gif"
-                    style={{
-                      marginTop: 6,
-                      maxWidth: "100%",
-                      borderRadius: 8
-                    }}
+                    style={{ marginTop: 6, maxWidth: "100%", borderRadius: 8 }}
                   />
                 )}
               </div>
             </div>
           );
         })}
-        <div ref={bottomRef} />
       </div>
 
-      {/* INPUT BAR */}
-      <div
-        style={{
-          padding: 8,
-          borderTop: "1px solid #222",
-          display: "flex",
-          gap: 6,
-          alignItems: "center"
-        }}
-      >
-        <button onClick={() => setShowEmoji(v => !v)}>😀</button>
-        <button
-          onClick={() => {
-            setShowGif(v => !v);
-            searchGifs();
-          }}
-        >
-          GIF
-        </button>
+      {/* INPUT + PICKERS */}
+      <div style={{ position: "relative" }}>
+        {/* PICKERS */}
+        {(showEmoji || showGif) && (
+          <div
+            style={{
+              height: 300,
+              background: "#111",
+              overflowY: "auto",
+              borderTop: "1px solid #222"
+            }}
+          >
+            {showEmoji && (
+              <EmojiPicker
+                onEmojiClick={(e) =>
+                  setText(prev => prev + e.emoji)
+                }
+              />
+            )}
 
-<input
-  value={text}
-  onChange={(e) => setText(e.target.value)}
-  placeholder="Message…"
-  style={{
-    flex: 1,
-    padding: 8,
-    borderRadius: 6,
-    border: "none"
-  }}
-  onKeyDown={(e) => {
-    if (e.key === "Enter" && !e.shiftKey) {
-      e.preventDefault();
-      sendMessage();
-    }
-  }}
-/>
+            {showGif && (
+              <div style={{ padding: 8 }}>
+                <input
+                  value={gifQuery}
+                  onChange={(e) => {
+                    setGifQuery(e.target.value);
+                    searchGifs(e.target.value);
+                  }}
+                  placeholder="Search GIFs..."
+                  style={{
+                    width: "100%",
+                    padding: 8,
+                    marginBottom: 8,
+                    borderRadius: 6,
+                    border: "none"
+                  }}
+                />
 
-<button onClick={sendMessage}>➤</button>
+                <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+                  {gifs.map(g => (
+                    <img
+                      key={g.id}
+                      src={g.images.fixed_height.url}
+                      alt="gif"
+                      style={{ height: 80, cursor: "pointer", borderRadius: 6 }}
+                      onClick={() =>
+                        sendGif(g.images.fixed_height.url)
+                      }
+                    />
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        )}
 
-      </div>
-
-      {/* EMOJI PICKER */}
-      {showEmoji && (
-        <div style={{ position: "absolute", bottom: 60 }}>
-          <EmojiPicker
-            onEmojiClick={(e) =>
-              setText(prev => prev + e.emoji)
-            }
-          />
-        </div>
-      )}
-
-      {/* GIF PICKER */}
-      {showGif && (
+        {/* INPUT BAR */}
         <div
           style={{
-            position: "absolute",
-            bottom: 60,
-            background: "#111",
             padding: 8,
+            borderTop: "1px solid #222",
             display: "flex",
             gap: 6,
-            flexWrap: "wrap"
+            alignItems: "center",
+            background: "#0f0f0f"
           }}
         >
-          {gifs.map(g => (
-            <img
-              key={g.id}
-              src={g.images.fixed_height.url}
-              alt="gif"
-              style={{ height: 80, cursor: "pointer" }}
-              onClick={() =>
-                sendGif(g.images.fixed_height.url)
+          <button onClick={() => {
+            setShowEmoji(v => !v);
+            setShowGif(false);
+          }}>😀</button>
+
+          <button onClick={() => {
+            setShowGif(v => !v);
+            setShowEmoji(false);
+            if (!showGif) {
+              setGifQuery("funny");
+              searchGifs("funny");
+            }
+          }}>GIF</button>
+
+          <input
+            value={text}
+            onChange={(e) => setText(e.target.value)}
+            placeholder="Message…"
+            style={{ flex: 1, padding: 8, borderRadius: 6, border: "none" }}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" && !e.shiftKey) {
+                e.preventDefault();
+                sendMessage();
               }
-            />
-          ))}
+            }}
+          />
+
+          <button onClick={sendMessage}>➤</button>
         </div>
-      )}
+      </div>
     </div>
   );
 }
