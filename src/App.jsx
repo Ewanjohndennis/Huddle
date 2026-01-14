@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { onAuthStateChanged } from "firebase/auth";
-import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
+import { Routes, Route, Navigate } from "react-router-dom";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 
 import { auth } from "./firebase";
 import Login from "./Login";
@@ -8,6 +9,11 @@ import Dashboard from "./components/Dashboard";
 import ProtectedRoute from "./utils/ProtectedRoute";
 import Loading from "./components/Loading";
 import Chat from "./chat";
+import Index from "./pages/Index";
+import NotFound from "./pages/NotFound";
+import { Toaster } from "./components/ui/toaster";
+
+const queryClient = new QueryClient();
 
 function App() {
   const [user, setUser] = useState(null);
@@ -18,44 +24,54 @@ function App() {
       setUser(currentUser);
       setLoading(false);
     });
-
     return () => unsub();
-  }, []); // Empty dependency array - only run once on mount
+  }, []);
 
   if (loading) return <Loading />;
 
   return (
-    <BrowserRouter>
-      <Routes>
-        {/* Public Route */}
-        <Route
-          path="/login"
-          element={!user ? <Login /> : <Navigate to="/" replace />}
-        />
+    <QueryClientProvider client={queryClient}>
+    
+        <Routes>
+  {/* 1. PUBLIC LANDING PAGE */}
+  <Route
+  path="/"
+  element={user ? <Navigate to="/dashboard" replace /> : <Index />}
+/>
 
-        {/* Protected Routes */}
-        <Route
-          path="/"
-          element={
-            <ProtectedRoute user={user}>
-              <Dashboard user={user} />
-            </ProtectedRoute>
-          }
-        />
 
-        <Route
-          path="/chat"
-          element={
-            <ProtectedRoute user={user}>
-              <Chat user={user} />
-            </ProtectedRoute>
-          }
-        />
+  {/* 2. LOGIN PAGE */}
+  <Route
+    path="/login"
+    element={!user ? <Login /> : <Navigate to="/dashboard" replace />}
+  />
 
-        {/* Catch all - redirect to home */}
-        <Route path="*" element={<Navigate to="/" replace />} />
-      </Routes>
-    </BrowserRouter>
+  {/* 3. PROTECTED DASHBOARD */}
+  <Route
+    path="/dashboard"
+    element={
+      <ProtectedRoute user={user}>
+        <Dashboard user={user} />
+      </ProtectedRoute>
+    }
+  />
+
+  {/* 4. PROTECTED CHAT */}
+  <Route
+    path="/chat"
+    element={
+      <ProtectedRoute user={user}>
+        <Chat user={user} />
+      </ProtectedRoute>
+    }
+  />
+
+  {/* 5. 404 */}
+  <Route path="*" element={<NotFound />} />
+</Routes>
+
+        <Toaster />
+    </QueryClientProvider>
   );
 }
 
