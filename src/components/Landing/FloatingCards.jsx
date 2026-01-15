@@ -7,7 +7,7 @@ const activities = [
   { id: 4, text: "Coffee run to canteen", emoji: "☕" },
   { id: 5, text: "Guitar jam in hostel", emoji: "🎸" },
 ];
-
+//trial
 export const FloatingCards = () => {
   const [visibleCards, setVisibleCards] = useState([0, 1, 2]);
 
