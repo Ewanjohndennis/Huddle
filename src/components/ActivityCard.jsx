@@ -2,12 +2,12 @@ import { useNavigate } from "react-router-dom";
 
 export default function ActivityCard({ activity, user, onJoinOrLeave }) {
   const navigate = useNavigate();
+const participants = activity.participants || {};
+const participantCount = Object.keys(participants).length;
+const max = activity.maxParticipants || Infinity;
+const isFull = participantCount >= max;
+const hasJoined = !!participants[user.uid];
 
-  const participants = activity.participants || {};
-  const hasJoined = !!participants[user.uid];
-  const participantCount = Object.keys(participants).length;
-  const max = activity.maxParticipants || Infinity;
-  const isFull = participantCount >= max;
 
   const formatTime = (value) => {
     if (!value) return "--";
@@ -49,9 +49,12 @@ export default function ActivityCard({ activity, user, onJoinOrLeave }) {
       </div>
 
       {/* PARTICIPANT COUNT */}
-      <div className="text-xs text-muted-foreground">
-        {participantCount} / {max} joined
-      </div>
+     <div className="text-xs text-muted-foreground mb-2">
+  {max === Infinity
+    ? `👥 ${participantCount} joined`
+    : `👥 ${participantCount} / ${max} joined`}
+</div>
+
 
       {/* FOOTER */}
       <div className="flex justify-between items-center border-t border-border pt-4">
@@ -75,37 +78,34 @@ export default function ActivityCard({ activity, user, onJoinOrLeave }) {
         </div>
 
         {/* JOIN / LEAVE / CHAT */}
-        {hasJoined ? (
-          <div className="flex gap-2">
-            <button
-              onClick={() => navigate(`/chat/${activity.id}`)}
-              className="bg-primary text-primary-foreground 
-                         hover:bg-primary/90 text-sm px-3 py-2 rounded-lg"
-            >
-              Chat
-            </button>
+{hasJoined ? (
+  <div className="flex gap-2">
+    <button
+      onClick={() => navigate(`/chat/${activity.id}`)}
+      className="bg-primary text-primary-foreground px-4 py-2 rounded-lg"
+    >
+      Chat
+    </button>
 
-            <button
-              onClick={() => onJoinOrLeave(activity.id, "leave")}
-              className="bg-red-600/80 hover:bg-red-600 
-                         text-white text-sm px-3 py-2 rounded-lg"
-            >
-              Leave
-            </button>
-          </div>
-        ) : (
-          <button
-            disabled={isFull}
-            onClick={() => onJoinOrLeave(activity.id, "join")}
-            className={`text-sm px-4 py-2 rounded-lg transition
-              ${isFull
-                ? "bg-muted text-muted-foreground cursor-not-allowed"
-                : "bg-primary text-primary-foreground hover:bg-primary/90"
-              }`}
-          >
-            {isFull ? "Full" : "Join"}
-          </button>
-        )}
+    <button
+      onClick={() => onJoinOrLeave(activity.id, "leave")}
+      className="bg-red-500 text-white px-4 py-2 rounded-lg"
+    >
+      Leave
+    </button>
+  </div>
+) : (
+  <button
+    disabled={isFull}
+    onClick={() => onJoinOrLeave(activity.id, "join")}
+    className={`px-4 py-2 rounded-lg text-white
+        ${isFull ? "bg-gray-500 cursor-not-allowed" : "bg-primary hover:opacity-90"}
+    `}
+  >
+    {isFull ? "Full" : "Join"}
+  </button>
+)}
+
       </div>
     </div>
   );

@@ -3,121 +3,154 @@ import { addDoc, collection, serverTimestamp } from "firebase/firestore";
 import { db } from "../firebase";
 
 export default function CreateActivityModal({ isOpen, onClose, user }) {
-    const [loading, setLoading] = useState(false);
-    const [formData, setFormData] = useState({
-        title: "",
-        description: "",
-        location: "",
-        endTime: ""
-    });
+  const [loading, setLoading] = useState(false);
+  const [formData, setFormData] = useState({
+    title: "",
+    description: "",
+    location: "",
+    endTime: "",
+    maxParticipants: ""  // ⭐ NEW FIELD
+  });
 
-    if (!isOpen) return null;
+  if (!isOpen) return null;
 
-const handleSubmit = async (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
     setLoading(true);
 
     try {
-        await addDoc(collection(db, "activities"), {
-            ...formData,
-            createdBy: user.uid,
-            creatorName: user.displayName || "Student",
-            createdAt: serverTimestamp(),
-            participants: {
-                [user.uid]: true
-            }
-        });
+      await addDoc(collection(db, "activities"), {
+        ...formData,
+        maxParticipants: formData.maxParticipants
+          ? Number(formData.maxParticipants)
+          : null, // ⭐ null = unlimited
+        createdBy: user.uid,
+        creatorName: user.displayName || "Student",
+        createdAt: serverTimestamp(),
+        participants: {
+          [user.uid]: true
+        }
+      });
 
-        onClose(); 
-        setFormData({ title: "", description: "", location: "", endTime: "" });
+      onClose();
+      setFormData({
+        title: "",
+        description: "",
+        location: "",
+        endTime: "",
+        maxParticipants: ""
+      });
 
     } catch (error) {
-        console.error("Error creating activity:", error);
-        alert("Failed to create activity");
+      console.error("Error creating activity:", error);
+      alert("Failed to create activity");
     } finally {
-        setLoading(false);
+      setLoading(false);
     }
-};
+  };
 
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+      <div 
+        className="absolute inset-0 bg-background/80 backdrop-blur-sm"
+        onClick={onClose}
+      />
 
-    return (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-            {/* Backdrop */}
-            <div 
-                className="absolute inset-0 bg-slate-900/80 backdrop-blur-sm transition-opacity"
-                onClick={onClose}
-            ></div>
+      <div className="relative w-full max-w-lg bg-card border border-border
+                      rounded-2xl p-6 sm:p-8 shadow-xl animate-slideUp">
 
-            {/* Modal Content */}
-            <div className="relative w-full max-w-lg glass-panel rounded-2xl p-6 sm:p-8 animate-slideUp">
-                <button 
-                    onClick={onClose}
-                    className="absolute top-4 right-4 text-slate-400 hover:text-white"
-                >
-                    ✕
-                </button>
+        <button 
+          onClick={onClose}
+          className="absolute top-4 right-4 text-muted-foreground hover:text-foreground"
+        >
+          ✕
+        </button>
 
-                <h2 className="text-2xl font-bold text-white mb-6">🚀 Create New Activity</h2>
+        <h2 className="text-2xl font-bold text-foreground mb-6">
+          Create New Activity
+        </h2>
 
-                <form onSubmit={handleSubmit} className="space-y-4">
-                    <div>
-                        <label className="text-sm text-slate-400 mb-1 block">Title</label>
-                        <input
-                            required
-                            type="text"
-                            placeholder="e.g. Hackathon Brainstorming"
-                            className="input-modern"
-                            value={formData.title}
-                            onChange={(e) => setFormData({...formData, title: e.target.value})}
-                        />
-                    </div>
+        <form onSubmit={handleSubmit} className="space-y-4">
 
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                        <div>
-                            <label className="text-sm text-slate-400 mb-1 block">Location</label>
-                            <input
-                                required
-                                type="text"
-                                placeholder="e.g. Library / Room 304"
-                                className="input-modern"
-                                value={formData.location}
-                                onChange={(e) => setFormData({...formData, location: e.target.value})}
-                            />
-                        </div>
-                        <div>
-                            <label className="text-sm text-slate-400 mb-1 block">End Time</label>
-                            <input
-                                required
-                                type="datetime-local"
-                                className="input-modern text-slate-400" 
-                                // Note: text-slate-400 fixes dark mode calendar icon visibility in some browsers
-                                value={formData.endTime}
-                                onChange={(e) => setFormData({...formData, endTime: e.target.value})}
-                            />
-                        </div>
-                    </div>
+          {/* Title */}
+          <div>
+            <label className="text-sm text-muted-foreground">Title</label>
+            <input
+              required
+              type="text"
+              placeholder="e.g. Hackathon Brainstorming"
+              className="w-full bg-muted border border-border rounded-xl px-4 py-3"
+              value={formData.title}
+              onChange={(e) => setFormData({ ...formData, title: e.target.value })}
+            />
+          </div>
 
-                    <div>
-                        <label className="text-sm text-slate-400 mb-1 block">Description</label>
-                        <textarea
-                            required
-                            rows="3"
-                            placeholder="What's the plan?"
-                            className="input-modern resize-none"
-                            value={formData.description}
-                            onChange={(e) => setFormData({...formData, description: e.target.value})}
-                        />
-                    </div>
-
-                    <button
-                        type="submit"
-                        disabled={loading}
-                        className="w-full btn-primary mt-4 flex justify-center items-center gap-2"
-                    >
-                        {loading ? "Posting..." : "Launch Activity"}
-                    </button>
-                </form>
+          {/* Location + Time */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div>
+              <label className="text-sm text-muted-foreground">Location</label>
+              <input
+                required
+                type="text"
+                placeholder="Library / Room 304"
+                className="w-full bg-muted border border-border rounded-xl px-4 py-3"
+                value={formData.location}
+                onChange={(e) => setFormData({ ...formData, location: e.target.value })}
+              />
             </div>
-        </div>
-    );
+
+            <div>
+              <label className="text-sm text-muted-foreground">End Time</label>
+              <input
+                required
+                type="datetime-local"
+                className="w-full bg-muted border border-border rounded-xl px-4 py-3"
+                value={formData.endTime}
+                onChange={(e) => setFormData({ ...formData, endTime: e.target.value })}
+              />
+            </div>
+          </div>
+
+          {/* ⭐ NEW: Max Participants */}
+          <div>
+            <label className="text-sm text-muted-foreground">
+              Max Participants (optional)
+            </label>
+            <input
+              type="number"
+              min="1"
+              placeholder="e.g. 10"
+              className="w-full bg-muted border border-border rounded-xl px-4 py-3"
+              value={formData.maxParticipants}
+              onChange={(e) =>
+                setFormData({ ...formData, maxParticipants: e.target.value })
+              }
+            />
+          </div>
+
+          {/* Description */}
+          <div>
+            <label className="text-sm text-muted-foreground">Description</label>
+            <textarea
+              required
+              rows="3"
+              placeholder="What's the plan?"
+              className="w-full bg-muted border border-border rounded-xl px-4 py-3 resize-none"
+              value={formData.description}
+              onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+            />
+          </div>
+
+          {/* Submit */}
+          <button
+            type="submit"
+            disabled={loading}
+            className="w-full bg-primary text-primary-foreground rounded-xl py-3 font-medium hover:opacity-90 transition"
+          >
+            {loading ? "Posting..." : "Launch Activity"}
+          </button>
+        </form>
+      </div>
+    </div>
+  );
 }
