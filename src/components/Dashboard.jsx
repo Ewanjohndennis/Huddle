@@ -21,56 +21,37 @@ function Dashboard({ user }) {
 
     const displayName = user?.displayName?.split(" ")[0] || "Student";
 
-    // ⭐ JOIN / LEAVE HANDLER
     const onJoinOrLeave = async (activityId, action) => {
-        const userId = user.uid;
         const ref = doc(db, "activities", activityId);
+        const userId = user.uid;
 
         if (action === "join") {
-            await updateDoc(ref, {
-                [`participants.${userId}`]: true,
-            });
-        } 
-        
-        if (action === "leave") {
-            await updateDoc(ref, {
-                [`participants.${userId}`]: deleteField(),
-            });
+            await updateDoc(ref, { [`participants.${userId}`]: true });
+        } else if (action === "leave") {
+            await updateDoc(ref, { [`participants.${userId}`]: deleteField() });
         }
     };
 
-    // 📡 REALTIME LISTENER + AUTO-DELETE EXPIRED
     useEffect(() => {
         const q = query(collection(db, "activities"), orderBy("createdAt", "desc"));
 
         const unsubscribe = onSnapshot(q, async (snapshot) => {
             const now = new Date();
-            const validActivities = [];
+            const valid = [];
 
             for (const docSnap of snapshot.docs) {
                 const data = docSnap.data();
-                let endTime;
+                let endTime =
+                    data.endTime?.toDate ? data.endTime.toDate() : new Date(data.endTime);
 
-                // Convert Firestore Timestamp or string into JS Date
-                if (data.endTime?.toDate) {
-                    endTime = data.endTime.toDate();
-                } else {
-                    endTime = new Date(data.endTime);
-                }
-
-                // ⛔ DELETE EXPIRED ACTIVITY
                 if (endTime < now) {
                     await deleteDoc(doc(db, "activities", docSnap.id));
                     continue;
                 }
-
-                validActivities.push({
-                    id: docSnap.id,
-                    ...data,
-                });
+                valid.push({ id: docSnap.id, ...data });
             }
 
-            setActivities(validActivities);
+            setActivities(valid);
             setLoading(false);
         });
 
@@ -78,56 +59,67 @@ function Dashboard({ user }) {
     }, []);
 
     return (
-        <div className="min-h-screen bg-[#0f172a] p-4 sm:p-8 relative overflow-hidden">
-            {/* Background Effects */}
+        <div className="min-h-screen bg-background p-4 sm:p-8 relative overflow-hidden text-foreground">
+
+            {/* Soft background glow effects */}
             <div className="fixed inset-0 pointer-events-none z-0">
-                <div className="absolute top-[-10%] right-[-5%] w-[500px] h-[500px] bg-blue-900/20 rounded-full blur-[120px]"></div>
-                <div className="absolute bottom-[-10%] left-[-5%] w-[500px] h-[500px] bg-purple-900/20 rounded-full blur-[120px]"></div>
+                <div className="absolute top-[-10%] right-[-5%] w-[500px] h-[500px] 
+                    bg-primary/10 rounded-full blur-[160px]"></div>
+                <div className="absolute bottom-[-10%] left-[-5%] w-[500px] h-[500px] 
+                    bg-muted/20 rounded-full blur-[160px]"></div>
             </div>
 
             <div className="relative z-10 max-w-7xl mx-auto">
+
                 {/* Header */}
                 <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-10 gap-4">
                     <div>
-                        <h1 className="text-4xl font-bold text-white mb-2">
+                        <h1 className="text-4xl font-bold mb-2">
                             Welcome,{" "}
-                            <span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-indigo-400">
+                            <span className="bg-clip-text text-transparent 
+                                bg-gradient-to-r from-primary to-accent">
                                 {displayName}
                             </span>
                         </h1>
-                        <p className="text-slate-400">See what’s happening on campus right now.</p>
+                        <p className="text-muted-foreground">
+                            See what’s happening on campus right now.
+                        </p>
                     </div>
 
                     <div className="flex gap-3 w-full md:w-auto">
                         <button
                             onClick={() => setIsModalOpen(true)}
-                            className="flex-1 md:flex-none btn-primary flex justify-center items-center gap-2"
+                            className="flex-1 md:flex-none bg-primary text-primary-foreground
+                                hover:bg-primary/90 px-6 py-3 rounded-xl font-medium transition"
                         >
                             + Create Activity
                         </button>
 
                         <button
                             onClick={() => signOut(auth)}
-                            className="px-5 py-3 rounded-xl border border-red-500/30 text-red-400 hover:bg-red-500/10 transition font-medium"
+                            className="px-5 py-3 rounded-xl border border-red-500/30 
+                                text-red-400 hover:bg-red-500/10 transition font-medium"
                         >
                             Sign Out
                         </button>
                     </div>
                 </div>
 
-                {/* Activities */}
-                <h2 className="text-2xl font-bold text-white mb-6 flex items-center gap-2">
-                    <span className="w-3 h-3 bg-red-500 rounded-full animate-pulse"></span>
+                {/* Live Activities */}
+                <h2 className="text-2xl font-bold mb-6 flex items-center gap-2">
+                    <span className="w-3 h-3 bg-primary rounded-full animate-pulse"></span>
                     Live on Campus
                 </h2>
 
                 {loading ? (
-                    <div className="text-center text-slate-500 py-20">Loading feeds...</div>
+                    <div className="text-center text-muted-foreground py-20">
+                        Loading feeds...
+                    </div>
                 ) : activities.length === 0 ? (
-                    <div className="text-center py-20 glass-panel rounded-2xl">
-                        <div className="text-6xl mb-4">😴</div>
-                        <h3 className="text-xl text-white font-bold">It's quiet... too quiet.</h3>
-                        <p className="text-slate-400">Be the first to start an activity!</p>
+                    <div className="text-center py-20 bg-card rounded-2xl border border-border">
+                        <div className="text-5xl mb-4">No activities</div>
+                        <h3 className="text-xl font-bold">It's quiet... too quiet.</h3>
+                        <p className="text-muted-foreground">Be the first to start an activity!</p>
                     </div>
                 ) : (
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">

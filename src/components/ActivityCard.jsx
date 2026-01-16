@@ -16,63 +16,79 @@ export default function ActivityCard({ activity, user, onJoinOrLeave }) {
   };
 
   return (
-    <div className="glass-card rounded-2xl p-6 flex flex-col gap-4 hover:border-blue-500/30 transition">
-      
-      {/* TOP */}
+    <div className="rounded-2xl p-6 flex flex-col gap-4 
+                    bg-card border border-border 
+                    hover:border-primary/40 transition">
+
+      {/* TOP STATUS */}
       <div className="flex justify-between items-start">
-        <span className={`text-xs px-2 py-1 rounded-md font-bold 
-          ${isFull ? "bg-red-600/20 text-red-300" : "bg-blue-600/20 text-blue-300"}`}>
+        <span
+          className={`text-xs px-2 py-1 rounded-md font-bold 
+          ${isFull 
+            ? "bg-red-500/10 text-red-400 border border-red-500/20"
+            : "bg-primary/20 text-primary border border-primary/30"
+          }`}
+        >
           {isFull ? "FULL" : "OPEN"}
         </span>
 
-        <span className="text-slate-500 text-xs">
+        <span className="text-muted-foreground text-xs">
           Ends at {formatTime(activity.endTime)}
         </span>
       </div>
 
-      {/* BODY */}
+      {/* TITLE + DESCRIPTION */}
       <div>
-        <h3 className="text-xl font-bold text-white">{activity.title}</h3>
-        <p className="text-slate-400 text-sm mt-1 line-clamp-2">
+        <h3 className="text-xl font-bold text-foreground">
+          {activity.title}
+        </h3>
+
+        <p className="text-muted-foreground text-sm mt-1 line-clamp-2">
           {activity.description}
         </p>
       </div>
 
-      <div className="text-xs text-slate-400">
-        👥 {participantCount} / {max} joined
+      {/* PARTICIPANT COUNT */}
+      <div className="text-xs text-muted-foreground">
+        {participantCount} / {max} joined
       </div>
 
       {/* FOOTER */}
-      <div className="flex justify-between items-center border-t border-white/5 pt-4">
+      <div className="flex justify-between items-center border-t border-border pt-4">
+        {/* Creator */}
         <div className="flex items-center gap-2">
-          <div className="w-6 h-6 rounded-full bg-gradient-to-r from-purple-500 to-pink-500
-                          flex items-center justify-center text-[10px] font-bold text-white">
+          <div className="w-6 h-6 rounded-full 
+                          bg-primary/30 border border-primary/40
+                          flex items-center justify-center 
+                          text-[10px] font-bold text-primary-foreground">
             {activity.creatorName?.charAt(0)}
           </div>
 
-          <span className="text-xs text-slate-400">
+          <span className="text-xs text-muted-foreground">
             {activity.creatorName}
           </span>
 
           <span className="text-[10px] px-2 py-0.5 rounded-full
-                           bg-yellow-500/20 text-yellow-300 border border-yellow-400/20">
+                           bg-accent/20 text-accent border border-accent/30">
             Creator
           </span>
         </div>
 
-        {/* ACTIONS */}
+        {/* JOIN / LEAVE / CHAT */}
         {hasJoined ? (
           <div className="flex gap-2">
             <button
               onClick={() => navigate(`/chat/${activity.id}`)}
-              className="bg-blue-600 hover:bg-blue-500 text-white text-sm px-3 py-2 rounded-lg"
+              className="bg-primary text-primary-foreground 
+                         hover:bg-primary/90 text-sm px-3 py-2 rounded-lg"
             >
               Chat
             </button>
 
             <button
               onClick={() => onJoinOrLeave(activity.id, "leave")}
-              className="bg-red-600 hover:bg-red-500 text-white text-sm px-3 py-2 rounded-lg"
+              className="bg-red-600/80 hover:bg-red-600 
+                         text-white text-sm px-3 py-2 rounded-lg"
             >
               Leave
             </button>
@@ -81,8 +97,11 @@ export default function ActivityCard({ activity, user, onJoinOrLeave }) {
           <button
             disabled={isFull}
             onClick={() => onJoinOrLeave(activity.id, "join")}
-            className={`text-white text-sm px-4 py-2 rounded-lg
-              ${isFull ? "bg-gray-600 cursor-not-allowed" : "bg-slate-700 hover:bg-slate-600"}`}
+            className={`text-sm px-4 py-2 rounded-lg transition
+              ${isFull
+                ? "bg-muted text-muted-foreground cursor-not-allowed"
+                : "bg-primary text-primary-foreground hover:bg-primary/90"
+              }`}
           >
             {isFull ? "Full" : "Join"}
           </button>
