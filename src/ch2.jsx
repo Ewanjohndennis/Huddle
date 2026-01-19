@@ -7,11 +7,13 @@ import {
     onSnapshot,
     serverTimestamp,
     doc,
-    getDoc
+    getDoc,
+    deleteDoc // Imported deleteDoc
 } from "firebase/firestore";
 import EmojiPicker from "emoji-picker-react";
 import { db } from "./firebase";
 import { useNavigate, useParams } from "react-router-dom";
+import EditActivityModal from "./components/EditActivityModal";
 
 export default function Chat({ user }) {
     const { roomId } = useParams();
@@ -22,26 +24,39 @@ export default function Chat({ user }) {
     const [showPicker, setShowPicker] = useState(false);
     const [activeTab, setActiveTab] = useState("emoji");
     const [gifs, setGifs] = useState([]);
-    const [activityTitle, setActivityTitle] = useState("Huddle Chat");
     const [gifSearch, setGifSearch] = useState("");
+
+    // 🔹 State for Activity Data & Menu
+    const [activityData, setActivityData] = useState(null); // Store full object
+    const [showMenu, setShowMenu] = useState(false); // Toggle for 3-dot menu
+    const [isEditModalOpen, setIsEditModalOpen] = useState(false);
 
     const username = user?.displayName || "Anonymous";
     const userEmail = user?.email || "";
+    const userId = user?.uid;
 
     const chatBoxRef = useRef(null);
     const inputRef = useRef(null);
 
-    /* 🔹 Fetch activity title */
+    // 🔹 Check if current user is the creator
+    const isCreator = activityData && userId === activityData.createdBy;
+
+    /* 🔹 Fetch Activity Details (Real-time to catch edits) */
     useEffect(() => {
         if (!roomId) return;
-        const fetchActivity = async () => {
-            const snap = await getDoc(doc(db, "activities", roomId));
-            if (snap.exists()) {
-                setActivityTitle(snap.data().title || "Huddle Chat");
+
+        // Changed to onSnapshot so title updates live if edited
+        const unsub = onSnapshot(doc(db, "activities", roomId), (doc) => {
+            if (doc.exists()) {
+                setActivityData(doc.data());
+            } else {
+                // If doc deleted while in chat, redirect
+                navigate("/dashboard");
             }
-        };
-        fetchActivity();
-    }, [roomId]);
+        });
+
+        return () => unsub();
+    }, [roomId, navigate]);
 
     /* 🔹 Fetch messages */
     useEffect(() => {
@@ -68,9 +83,21 @@ export default function Chat({ user }) {
         }
     }, []);
 
+    // 🔹 Delete Activity Logic
+    const handleDeleteActivity = async () => {
+        if (confirm("Are you sure you want to delete this activity? This cannot be undone.")) {
+            try {
+                await deleteDoc(doc(db, "activities", roomId));
+                navigate("/dashboard");
+            } catch (error) {
+                console.error("Error deleting activity:", error);
+                alert("Could not delete activity.");
+            }
+        }
+    };
+
     const sendMessage = async () => {
         if (!text.trim() || !roomId) return;
-
         await addDoc(collection(db, "activities", roomId, "messages"), {
             sender: username,
             email: userEmail,
@@ -78,9 +105,7 @@ export default function Chat({ user }) {
             createdAt: serverTimestamp(),
             type: "text"
         });
-
         setText("");
-        // Keep focus on input for fast typing
         inputRef.current?.focus();
         setShowPicker(false);
     };
@@ -100,13 +125,9 @@ export default function Chat({ user }) {
     const searchGifs = async (q) => {
         const apiKey = import.meta.env.VITE_GIPHY_KEY;
         if (!apiKey) return;
-
         const queryTerm = q.trim() || "trending";
-
         try {
-            const res = await fetch(
-                `https://api.giphy.com/v1/gifs/search?api_key=${apiKey}&q=${queryTerm}&limit=20`
-            );
+            const res = await fetch(`https://api.giphy.com/v1/gifs/search?api_key=${apiKey}&q=${queryTerm}&limit=20`);
             const data = await res.json();
             setGifs(data.data || []);
         } catch (error) {
@@ -114,7 +135,6 @@ export default function Chat({ user }) {
         }
     };
 
-    // Toggle Drawer (Closes keyboard)
     const togglePicker = (tab) => {
         if (showPicker && activeTab === tab) {
             setShowPicker(false);
@@ -126,49 +146,100 @@ export default function Chat({ user }) {
         }
     };
 
-    // Typing closes drawer
     const handleInputFocus = () => {
         setShowPicker(false);
     };
 
     return (
-        <div className="flex flex-col h-[100dvh] bg-background text-foreground overflow-hidden">
+        <div className="flex flex-col h-[100dvh] bg-background text-foreground overflow-hidden"
+            onClick={() => showMenu && setShowMenu(false)} // Close menu if clicking elsewhere
+        >
 
             {/* HEADER */}
-            <header className="h-16 shrink-0 bg-card/80 backdrop-blur-md border-b border-border flex items-center px-4 z-10">
+            <header className="h-16 shrink-0 bg-card/80 backdrop-blur-md border-b border-border flex items-center justify-between px-4 z-10">
                 <div className="flex items-center gap-3">
-                    <button onClick={() => navigate("/dashboard")} className="p-2 rounded-full hover:bg-muted transition">
+                    <button
+                        onClick={() => navigate("/dashboard")}
+                        className="p-2 rounded-full hover:bg-muted transition"
+                    >
                         ←
                     </button>
+
                     <div>
                         <h2 className="font-bold leading-tight truncate max-w-[200px]">
-                            {activityTitle}
+                            {activityData?.title || "Huddle Chat"}
                         </h2>
                         <div className="flex items-center gap-1.5">
                             <span className="w-2 h-2 bg-primary rounded-full animate-pulse"></span>
-                            <span className="text-xs text-muted-foreground">Live chat</span>
+                            <span className="text-xs text-muted-foreground">
+                                Live chat
+                            </span>
                         </div>
                     </div>
                 </div>
+
+                {/* 🔹 3-DOT MENU (Only for Creator) */}
+                {isCreator && (
+                    <div className="relative">
+                        <button
+                            onClick={(e) => {
+                                e.stopPropagation(); // Prevent closing immediately
+                                setShowMenu(!showMenu);
+                            }}
+                            className="p-2 rounded-full hover:bg-muted text-muted-foreground hover:text-foreground transition"
+                        >
+                            <svg className="w-6 h-6" fill="currentColor" viewBox="0 0 24 24">
+                                <path d="M12 16a2 2 0 110 4 2 2 0 010-4zm0-6a2 2 0 110 4 2 2 0 010-4zm0-6a2 2 0 110 4 2 2 0 010-4z" />
+                            </svg>
+                        </button>
+
+                        {/* Dropdown Content */}
+                        {showMenu && (
+                            <div className="absolute right-0 top-full mt-2 w-40 bg-card border border-border rounded-xl shadow-xl overflow-hidden z-50 animate-slide-up">
+                                <button
+                                    onClick={() => setIsEditModalOpen(true)}
+                                    className="w-full text-left px-4 py-3 text-sm hover:bg-muted transition flex items-center gap-2"
+                                >
+                                    ✏️ Edit Activity
+                                </button>
+                                <button
+                                    onClick={handleDeleteActivity}
+                                    className="w-full text-left px-4 py-3 text-sm hover:bg-destructive/10 text-destructive transition flex items-center gap-2"
+                                >
+                                    🗑️ Delete
+                                </button>
+                            </div>
+                        )}
+                    </div>
+                )}
             </header>
 
             {/* CHAT MESSAGES */}
             <div
                 ref={chatBoxRef}
-                className="flex-1 min-h-0 overflow-y-auto p-4 space-y-4 bg-gradient-to-b from-background to-card"
+                className="flex-1 min-h-0 overflow-y-auto p-4 space-y-4
+                   bg-gradient-to-b from-background to-card"
             >
                 {messages.map((m) => {
                     const isMe = m.email === userEmail;
+
                     return (
                         <div key={m.id} className={`flex ${isMe ? "justify-end" : "justify-start"}`}>
-                            <div className={`max-w-[85%] md:max-w-[60%] flex flex-col ${isMe ? "items-end" : "items-start"}`}>
+                            <div className={`max-w-[85%] md:max-w-[60%]
+                               flex flex-col ${isMe ? "items-end" : "items-start"}`}>
                                 {!isMe && (
-                                    <span className="text-xs text-muted-foreground mb-1 ml-1">{m.sender}</span>
+                                    <span className="text-xs text-muted-foreground mb-1 ml-1">
+                                        {m.sender}
+                                    </span>
                                 )}
-                                <div className={`px-4 py-2 rounded-2xl text-sm shadow break-words ${isMe
-                                        ? "bg-primary text-primary-foreground rounded-br-sm"
-                                        : "bg-card border border-border rounded-bl-sm"
-                                    }`}>
+
+                                <div
+                                    className={`px-4 py-2 rounded-2xl text-sm shadow break-words
+                                    ${isMe
+                                            ? "bg-primary text-primary-foreground rounded-br-sm"
+                                            : "bg-card border border-border rounded-bl-sm"
+                                        }`}
+                                >
                                     {m.text}
                                     {m.gifUrl && (
                                         <img
@@ -188,7 +259,7 @@ export default function Chat({ user }) {
                 })}
             </div>
 
-            {/* INPUT BAR */}
+            {/* INPUT AREA */}
             <div className="shrink-0 p-3 bg-card border-t border-border z-20 relative">
                 <div className="flex items-end gap-2 bg-muted p-2 rounded-xl border border-border focus-within:border-primary transition-colors">
 
@@ -202,8 +273,8 @@ export default function Chat({ user }) {
                     <button
                         onClick={() => togglePicker("gif")}
                         className={`p-2 text-xs font-bold border border-transparent rounded-lg h-10 w-10 flex items-center justify-center transition-all ${showPicker && activeTab === 'gif'
-                                ? 'bg-primary/20 text-primary border-primary/20'
-                                : 'text-muted-foreground hover:text-primary'
+                            ? 'bg-primary/20 text-primary border-primary/20'
+                            : 'text-muted-foreground hover:text-primary'
                             }`}
                     >
                         GIF
@@ -229,7 +300,8 @@ export default function Chat({ user }) {
                     <button
                         onClick={sendMessage}
                         disabled={!text.trim()}
-                        className="p-2 bg-primary text-primary-foreground rounded-lg disabled:opacity-50 font-medium transition-opacity"
+                        className="p-2 bg-primary text-primary-foreground rounded-lg
+                         disabled:opacity-50 font-medium transition-opacity"
                     >
                         <svg viewBox="0 0 24 24" fill="currentColor" className="w-5 h-5">
                             <path d="M3.478 2.405a.75.75 0 00-.926.94l2.432 7.905H13.5a.75.75 0 010 1.5H4.984l-2.432 7.905a.75.75 0 00.926.94 60.519 60.519 0 0018.445-8.986.75.75 0 000-1.218A60.517 60.517 0 003.478 2.405z" />
@@ -238,19 +310,12 @@ export default function Chat({ user }) {
                 </div>
             </div>
 
-            {/* DRAWER (Emoji/GIF) */}
+            {/* DRAWER */}
             <div
                 className={`shrink-0 bg-card border-t border-border overflow-hidden transition-all duration-300 ease-in-out ${showPicker ? "h-[320px]" : "h-0"
                     }`}
             >
-                {/* 
-                   🔹 KEY FIX: We wrap the contents in a div that becomes HIDDEN
-                   when the drawer is closed. This prevents the browser from
-                   focusing on inputs inside the drawer when it's supposed to be closed.
-                */}
                 <div className="h-full w-full" style={{ visibility: showPicker ? 'visible' : 'hidden' }}>
-
-                    {/* EMOJI */}
                     <div className={`h-full w-full ${activeTab === 'emoji' ? 'block' : 'hidden'}`}>
                         <EmojiPicker
                             theme="dark"
@@ -258,11 +323,10 @@ export default function Chat({ user }) {
                             width="100%"
                             height="100%"
                             previewConfig={{ showPreview: false }}
-                            autoFocusSearch={false} /* 🔹 FIX: Prevents focus stealing */
+                            autoFocusSearch={false}
                         />
                     </div>
 
-                    {/* GIF */}
                     <div className={`h-full w-full flex flex-col p-3 ${activeTab === 'gif' ? 'block' : 'hidden'}`}>
                         <div className="relative mb-3 shrink-0">
                             <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground">🔍</span>
@@ -309,6 +373,15 @@ export default function Chat({ user }) {
                     </div>
                 </div>
             </div>
+
+            {/* 🔹 EDIT MODAL INJECTION */}
+            <EditActivityModal
+                isOpen={isEditModalOpen}
+                onClose={() => setIsEditModalOpen(false)}
+                activityId={roomId}
+                currentData={activityData}
+            />
+
         </div>
     );
 }
